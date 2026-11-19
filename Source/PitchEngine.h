@@ -1,6 +1,6 @@
 #pragma once
 
-// TideTune 0.2: standalone, allocation-free monophonic vocal pitch correction.
+// TideTune 0.2.1: click-reduced, allocation-free monophonic vocal pitch correction.
 // No JUCE dependencies. The algorithm is a low-latency dual-grain shifter,
 // not a formant-preserving PSOLA/vocoder. Keep expectations realistic.
 
@@ -93,6 +93,7 @@ public:
         phase_ = 0.0f;
         ratio_ = desiredRatio_ = 1.0f;
         activity_ = 0.0f;
+        smoothedMix_ = 0.0f;
         lockedTarget_ = -1;
         noteAge_ = 0;
         vibratoPhase_ = 0.0f;
@@ -110,10 +111,11 @@ public:
         const float mix = s.bypass ? 0.0f : std::clamp(s.mix, 0.0f, 1.0f);
         const float response = std::clamp(s.retuneMs, 0.0f, 400.0f);
         const float humanize = std::clamp(s.humanize, 0.0f, 1.0f);
-        const float timeMs = (s.hard ? 0.65f : 4.0f) + response * (s.hard ? 1.0f : 1.6f)
+        const float timeMs = (s.hard ? 1.5f : 5.0f) + response * (s.hard ? 1.0f : 1.6f)
                             * (1.0f + humanize * 1.8f);
         const float slew = 1.0f - std::exp(-1000.0f / (timeMs * static_cast<float>(sampleRate_)));
-        const float activitySlew = 1.0f - std::exp(-1.0f / (0.008f * static_cast<float>(sampleRate_)));
+        const float activitySlew = 1.0f - std::exp(-1.0f / (0.012f * static_cast<float>(sampleRate_)));
+        const float mixSlew = 1.0f - std::exp(-1.0f / (0.010f * static_cast<float>(sampleRate_)));
         const float vibratoStep = 5.4f / static_cast<float>(sampleRate_);
 
         for (int i = 0; i < numSamples; ++i) {
@@ -147,14 +149,19 @@ public:
             // permanent comb filtering when desired shift is zero.
             const float activeTarget = (std::abs(targetRatio - 1.0f) > 0.00035f && !s.bypass) ? 1.0f : 0.0f;
             activity_ += activitySlew * (activeTarget - activity_);
+            smoothedMix_ += mixSlew * (mix - smoothedMix_);
 
-            const float delta = std::abs(ratio_ - 1.0f);
-            phase_ += delta / grainLength_;
-            if (phase_ >= 1.0f) phase_ -= std::floor(phase_);
-            const bool upward = ratio_ >= 1.0f;
+            // A signed, continuous read-head phase. Changing direction no longer
+            // flips the delay positions: only the speed/direction of travel changes.
+            // This removes a discontinuity when the correction crosses unity
+            // (for example, switching from sharpening to flattening a note).
+            // Both wrap points occur with the wrapping grain fully faded out.
+            phase_ += (1.0f - ratio_) / grainLength_;
+            if (phase_ >= 1.0f) phase_ -= 1.0f;
+            else if (phase_ < 0.0f) phase_ += 1.0f;
             const float secondPhase = phase_ < 0.5f ? phase_ + 0.5f : phase_ - 0.5f;
-            const float delayA = baseDelay_ + (upward ? (1.0f - phase_) : phase_) * grainLength_;
-            const float delayB = baseDelay_ + (upward ? (1.0f - secondPhase) : secondPhase) * grainLength_;
+            const float delayA = baseDelay_ + phase_ * grainLength_;
+            const float delayB = baseDelay_ + secondPhase * grainLength_;
             const float windowA = std::sin(static_cast<float>(pi) * phase_);
             const float windowB = std::sin(static_cast<float>(pi) * secondPhase);
             const float gainA = windowA * windowA;
@@ -162,7 +169,7 @@ public:
             for (int ch = 0; ch < count; ++ch) {
                 const float dry = readDelay(ch, static_cast<float>(dryDelaySamples_));
                 const float wet = gainA * readDelay(ch, delayA) + gainB * readDelay(ch, delayB);
-                channels[ch][i] = dry + (wet - dry) * (mix * activity_);
+                channels[ch][i] = dry + (wet - dry) * (smoothedMix_ * activity_);
             }
             writePos_ = (writePos_ + 1) & delayMask;
         }
@@ -291,6 +298,6 @@ private:
     int lockedTarget_ = -1, noteAge_ = 0;
     float grainLength_ = 1024.0f, baseDelay_ = 768.0f;
     float phase_ = 0.0f, ratio_ = 1.0f, desiredRatio_ = 1.0f;
-    float activity_ = 0.0f, vibratoPhase_ = 0.0f;
+    float activity_ = 0.0f, smoothedMix_ = 0.0f, vibratoPhase_ = 0.0f;
 };
 } // namespace tidetune
