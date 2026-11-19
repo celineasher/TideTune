@@ -2,7 +2,7 @@
 # One-time import of the TideTune v0.2 source archive.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 [[ -d .git ]] || { echo "Run this from your TideTune Git clone." >&2; exit 1; }
 
