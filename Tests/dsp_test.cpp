@@ -128,6 +128,81 @@ static void testVoicedNoise() {
     assert(engine.detectedMidi.load() < 0.0f);
 }
 
+// Regression test: the former engine jumped between read-head positions
+// when the pitch shift crossed unity, producing a sharp single-sample click.
+static void testDirectionChangesWithoutClicks() {
+    constexpr double sr = 48000.0;
+    tidetune::PitchEngine engine;
+    engine.prepare(sr);
+    tidetune::Settings s;
+    s.scale = 0;
+    s.hard = true;
+    s.retuneMs = 0.0f;
+    s.strength = 1.0f;
+    s.mix = 1.0f;
+    float block[256] {};
+    float* channels[] {block};
+    float previous = 0.0f;
+    double phase = 0.0;
+    float largestJump = 0.0f;
+    float aroundDirectionChange = 0.0f;
+    for (int start = 0; start < 3 * 48000; start += 256) {
+        s.transpose = start < 48000 ? 2 : (start < 96000 ? -2 : 2);
+        for (int i = 0; i < 256; ++i) {
+            phase += 2.0 * tidetune::pi * 440.0 / sr;
+            block[i] = 0.35f * std::sin(phase);
+        }
+        engine.process(channels, 1, 256, s);
+        for (int i = 0; i < 256; ++i) {
+            const int t = start + i;
+            const float jump = std::abs(block[i] - previous);
+            if (t > 10000) largestJump = std::max(largestJump, jump);
+            if (t > 45000 && t < 53000)
+                aroundDirectionChange = std::max(aroundDirectionChange, jump);
+            previous = block[i];
+            assert(std::isfinite(previous));
+        }
+    }
+    std::printf("Pitch direction change: max sample jump %.4f (near switch %.4f)\n",
+                largestJump, aroundDirectionChange);
+    assert(largestJump < 0.085f);
+    assert(aroundDirectionChange < 0.085f);
+}
+
+// Bypass and wet/dry automation must not introduce an abrupt level switch.
+static void testBypassAndWetDryAutomation() {
+    constexpr double sr = 48000.0;
+    tidetune::PitchEngine engine;
+    engine.prepare(sr);
+    tidetune::Settings s;
+    s.scale = 0;
+    s.hard = true;
+    s.retuneMs = 0.0f;
+    float block[256] {};
+    float* channels[] {block};
+    float previous = 0.0f;
+    double phase = 0.0;
+    float maxJump = 0.0f;
+    for (int start = 0; start < 4 * 48000; start += 256) {
+        s.mix = start < 48000 || start >= 96000 ? 1.0f : 0.0f;
+        s.bypass = start >= 144000;
+        for (int i = 0; i < 256; ++i) {
+            phase += 2.0 * tidetune::pi * 450.0 / sr;
+            block[i] = 0.35f * std::sin(phase);
+        }
+        engine.process(channels, 1, 256, s);
+        for (int i = 0; i < 256; ++i) {
+            const int t = start + i;
+            if (t > 10000)
+                maxJump = std::max(maxJump, std::abs(block[i] - previous));
+            previous = block[i];
+            assert(std::isfinite(previous));
+        }
+    }
+    std::printf("Wet/dry and bypass automation: max sample jump %.4f\n", maxJump);
+    assert(maxJump < 0.09f);
+}
+
 int main() {
     testScale();
     testPitch(220.0f, 57.0f);
@@ -141,5 +216,7 @@ int main() {
     testCorrection(false);
     testBypassAndSilence();
     testVoicedNoise();
+    testDirectionChangesWithoutClicks();
+    testBypassAndWetDryAutomation();
     std::puts("All standalone DSP tests passed.");
 }
