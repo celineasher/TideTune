@@ -10,7 +10,7 @@ cd "$ROOT"
 source_ok() {
   local d="$1"
   [[ -f "$d/CMakeLists.txt" ]] &&
-  grep -Eq 'project\(TideTune VERSION 0\.2\.0' "$d/CMakeLists.txt" &&
+  grep -Eq 'project\(TideTune VERSION 0\.2\.[0-9]+' "$d/CMakeLists.txt" &&
   [[ -f "$d/LICENSE" ]] &&
   [[ -f "$d/Source/PluginProcessor.cpp" ]] &&
   [[ -f "$d/Source/PitchEngine.h" ]] &&
