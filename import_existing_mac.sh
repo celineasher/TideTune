@@ -63,6 +63,10 @@ if ! git diff --cached --quiet; then
   git commit -m "Import TideTune v0.2 source and DSP tests"
 fi
 
-echo "Pushing TideTune source to GitHub..."
-git push origin main
-echo "Source is now committed and pushed. Next: bash ~/TideTune/update_mac.sh"
+if [[ "$(git rev-list --count origin/main..HEAD)" -gt 0 ]]; then
+  echo "Pushing TideTune source to GitHub..."
+  git push origin main
+else
+  echo "TideTune source is already committed and synchronized."
+fi
+echo "Source ready. Next: bash ~/TideTune/update_mac.sh"
