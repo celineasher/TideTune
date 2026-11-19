@@ -1,38 +1,68 @@
 #!/usr/bin/env bash
-# One-time import of previously downloaded TideTune v0.2 ZIP into GitHub.
+# One-time import of the TideTune v0.2 source archive.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
-[[ -d .git ]] || { echo "Run from a Git clone of celineasher/TideTune" >&2; exit 1; }
-if [[ -f CMakeLists.txt && -d Source ]]; then
-  echo "TideTune source is already present; no import needed."
-  exit 0
+[[ -d .git ]] || { echo "Run this from your TideTune Git clone." >&2; exit 1; }
+
+# Check the exact source tree before trying to commit anything.
+source_ok() {
+  local d="$1"
+  [[ -f "$d/CMakeLists.txt" ]] &&
+  grep -Eq 'project\(TideTune VERSION 0\.2\.0' "$d/CMakeLists.txt" &&
+  [[ -f "$d/LICENSE" ]] &&
+  [[ -f "$d/Source/PluginProcessor.cpp" ]] &&
+  [[ -f "$d/Source/PitchEngine.h" ]] &&
+  [[ -f "$d/Tests/dsp_test.cpp" ]] &&
+  [[ -f "$d/build_mac.sh" ]] &&
+  [[ -f "$d/test_dsp.sh" ]]
+}
+
+if source_ok "$ROOT"; then
+  echo "Complete TideTune v0.2 source already found in the Git clone."
+else
+  ZIP="$HOME/Downloads/TideTune-v0.2.0-mac-source.zip"
+  DIR="$HOME/Downloads/TideTune"
+  TMP=""
+  if [[ -f "$ZIP" ]]; then
+    TMP="$(mktemp -d)"
+    trap '[[ -z "$TMP" ]] || rm -rf "$TMP"' EXIT
+    if ! unzip -q "$ZIP" -d "$TMP"; then
+      echo "Could not extract $ZIP" >&2; exit 1
+    fi
+    DIR="$TMP/TideTune"
+  fi
+
+  if ! source_ok "$DIR"; then
+    echo "Missing or incomplete TideTune v0.2 source." >&2
+    echo "The existing ~/Downloads/TideTune folder may contain v0.1, not v0.2." >&2
+    echo "Put TideTune-v0.2.0-mac-source.zip in ~/Downloads and rerun this script." >&2
+    echo "Existing source files have not been deleted." >&2
+    exit 1
+  fi
+
+  for item in CMakeLists.txt LICENSE Source Tests build_mac.sh test_dsp.sh; do
+    if [[ -d "$DIR/$item" ]]; then
+      mkdir -p "$ROOT/$item"
+      ditto "$DIR/$item" "$ROOT/$item"
+    else
+      cp "$DIR/$item" "$ROOT/$item"
+    fi
+  done
 fi
-ZIP="$HOME/Downloads/TideTune-v0.2.0-mac-source.zip"
-DIR="$HOME/Downloads/TideTune"
-TMP=""
-if [[ -f "$ZIP" ]]; then
-  TMP="$(mktemp -d)"
-  trap '[[ -z "$TMP" ]] || rm -rf "$TMP"' EXIT
-  unzip -q "$ZIP" -d "$TMP"
-  DIR="$TMP/TideTune"
-fi
-if [[ ! -f "$DIR/CMakeLists.txt" || ! -f "$DIR/Source/PluginProcessor.cpp" ]]; then
-  echo "Cannot find the v0.2 source in $ZIP or $HOME/Downloads/TideTune" >&2
-  echo "Get the existing v0.2 source ZIP from this chat once, then rerun." >&2
+
+if ! source_ok "$ROOT"; then
+  echo "Imported source validation failed; nothing has been committed." >&2
   exit 1
 fi
-for item in CMakeLists.txt LICENSE Source Tests build_mac.sh test_dsp.sh; do
-  if [[ -d "$DIR/$item" ]]; then
-    ditto "$DIR/$item" "$ROOT/$item"
-  elif [[ -f "$DIR/$item" ]]; then
-    cp "$DIR/$item" "$ROOT/$item"
-  fi
-done
-git add CMakeLists.txt LICENSE Source Tests build_mac.sh test_dsp.sh
+
+git add -- CMakeLists.txt LICENSE Source Tests build_mac.sh test_dsp.sh
+
 if ! git diff --cached --quiet; then
-  git commit -m "Import TideTune v0.2 plugin source"
-  echo "Pushing the source to your GitHub repository..."
-  git push origin main
+  git commit -m "Import TideTune v0.2 source and DSP tests"
 fi
-echo "Source imported. Now run: bash ~/TideTune/update_mac.sh"
+
+echo "Pushing TideTune source to GitHub..."
+git push origin main
+echo "Source is now committed and pushed. Next: bash ~/TideTune/update_mac.sh"
