@@ -206,7 +206,7 @@ void TideTuneAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(24.0f, 420.0f, 1042.0f, 127.0f, 14.0f, 1.0f);
     drawKeyboard(g);
     drawText(g, "TIDE AUDIO / ORIGINAL DSP", {27, 665, 360, 16}, 10.0f, dim);
-    drawText(g, "V0.2 • CORRECTION MODE / HARD", {811, 665, 256, 16}, 10.0f, secondary);
+    drawText(g, "V0.2.1 • CORRECTION MODE / HARD", {811, 665, 256, 16}, 10.0f, secondary);
 }
 
 void TideTuneAudioProcessorEditor::drawCenterMeter(juce::Graphics& g) {
