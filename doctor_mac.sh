@@ -46,6 +46,13 @@ check_bundle "/Library/Audio/Plug-Ins/VST3/TideTune.vst3" "System VST3"
 check_bundle "/Library/Audio/Plug-Ins/Components/TideTune.component" "System AU"
 check_bundle "/Volumes/Athar SSD/VST3/TideTune.vst3" "Custom SSD VST3"
 
+# Also examine plugin bundles quarantined by the safe isolation instructions.
+if [[ -d "$HOME/Desktop/TideTune-Disabled" ]]; then
+  while IFS= read -r -d '' plugin; do
+    check_bundle "$plugin" "Disabled copy"
+  done < <(find "$HOME/Desktop/TideTune-Disabled" -maxdepth 4 -type d \( -name "TideTune.vst3" -o -name "TideTune.component" \) -print0)
+fi
+
 echo ""
 echo "-- Latest relevant macOS crash reports"
 report_dir="$HOME/Library/Logs/DiagnosticReports"
