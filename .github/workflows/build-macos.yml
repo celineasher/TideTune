@@ -1,0 +1,40 @@
+name: macOS TideTune build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and test arm64 AU/VST3
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Show tool versions
+        run: |
+          xcodebuild -version
+          cmake --version
+          clang++ --version
+      - name: Test standalone pitch DSP
+        run: bash ./test_dsp.sh
+      - name: Configure JUCE for Apple Silicon
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+      - name: Build native plugins
+        run: cmake --build build --config Release --parallel 3
+      - name: Validate compiled plugin bundles
+        run: |
+          test -f build/TideTune_artefacts/Release/VST3/TideTune.vst3/Contents/MacOS/TideTune
+          test -f build/TideTune_artefacts/Release/AU/TideTune.component/Contents/MacOS/TideTune
+          file build/TideTune_artefacts/Release/VST3/TideTune.vst3/Contents/MacOS/TideTune
+          file build/TideTune_artefacts/Release/AU/TideTune.component/Contents/MacOS/TideTune
+      - name: Upload arm64 plugin bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: TideTune-v0.3.0-arm64-macOS-VST3-AU
+          path: |
+            build/TideTune_artefacts/Release/VST3/TideTune.vst3
+            build/TideTune_artefacts/Release/AU/TideTune.component
+          if-no-files-found: error
