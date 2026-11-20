@@ -232,61 +232,59 @@ void TideTuneAudioProcessorEditor::paint(juce::Graphics& g) {
 }
 
 void TideTuneAudioProcessorEditor::drawCenterMeter(juce::Graphics& g) {
-    drawText(g, "DETECTED", {49, 196, 220, 24}, 11.0f, secondary, true);
-    drawText(g, "TARGET", {824, 196, 200, 24}, 11.0f, secondary, true);
-    drawText(g, displayedMidi >= 0 ? noteName(static_cast<int>(std::round(displayedMidi))) : "--",
-             {48, 229, 240, 86}, 75.0f, white, true);
-    drawText(g, noteName(displayedTarget), {821, 229, 219, 86}, 75.0f, cyan, true);
-    drawText(g, displayedMidi < 0 ? "WAITING FOR VOCAL" :
-             juce::String((displayedMidi - std::round(displayedMidi)) * 100.0f, 1) + " cents / input",
-             {49, 335, 235, 24}, 12.0f, secondary);
-    drawText(g, displayedTarget < 0 ? "NO PITCH LOCK" :
-             juce::String(static_cast<int>(displayedConfidence * 100)) + "% TRACKING CONFIDENCE",
-             {821, 335, 233, 24}, 12.0f, blue);
+    if(showPitchTrace_) { drawPitchTrace(g); return; }
+    const float cx=607.0f,cy=336.0f,outer=111.0f;
+    g.setColour(juce::Colour(0xff071119));
+    g.fillEllipse(cx-outer-10,cy-outer-10,2*(outer+10),2*(outer+10));
+    g.setColour(juce::Colour(0xff5b7a8c));
+    g.drawEllipse(cx-outer-9,cy-outer-9,2*(outer+9),2*(outer+9),2.0f);
+    for(int tick=0;tick<=100;++tick) {
+        const float normalized=((float)tick-50.0f)/50.0f;
+        const float a=normalized*2.12f,sn=std::sin(a),cs=std::cos(a);
+        const float inner=outer-(tick%10==0?18.0f:11.0f);
+        const bool lit=displayedMidi>=0.0f && std::abs(normalized*50.0f-displayedCents)<4.0f;
+        g.setColour(lit?cyan:(tick%10==0?secondary:juce::Colour(0xff34596b)));
+        g.drawLine(cx+sn*inner,cy-cs*inner,cx+sn*outer,cy-cs*outer,tick%10==0?2.1f:1.5f);
+    }
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff182c3b),cx,cy-95,
+                                           juce::Colour(0xff07121c),cx,cy+95,false));
+    g.fillEllipse(cx-84,cy-84,168,168);
+    g.setColour(juce::Colour(0xff294657));
+    g.drawEllipse(cx-84,cy-84,168,168,1.3f);
+    drawText(g,noteName(displayedTarget),{526,284,165,79},66.0f,white,true,
+             juce::Justification::centred);
+    const juce::String cents=displayedMidi>=0.0f?
+          juce::String(displayedCents>=0?"+":"")+juce::String(displayedCents,1)+" c":"NO INPUT";
+    drawText(g,cents,{542,355,131,38},24.0f,cyan,true,juce::Justification::centred);
+    drawText(g,"CENTS",{555,394,106,24},11.0f,secondary,true,
+             juce::Justification::centred);
+    drawText(g,"-50",{466,331,51,24},11.0f,dim);
+    drawText(g,"+50",{702,331,51,24},11.0f,dim);
+    drawText(g,"0",{598,214,25,23},12.0f,white,true);
+}
 
-    const float cx = 546.0f;
-    const float cy = 289.0f;
-    const float outerRadius = 93.0f;
-    for (int i = 0; i <= 80; ++i) {
-        const float v = (static_cast<float>(i) / 80.0f) * 2.0f - 1.0f;
-        const float a = v * 2.13f;
-        const float r0 = outerRadius - (i % 10 == 0 ? 17.0f : 9.0f);
-        const float s = std::sin(a), c = std::cos(a);
-        const bool active = displayedMidi >= 0 && std::abs(v * 100.0f - displayedCents) < 8.0f;
-        g.setColour(active ? cyan : (std::abs(v) < 0.04f ? white : juce::Colour(0xff3e536c)));
-        g.drawLine(cx + s * r0, cy - c * r0,
-                   cx + s * outerRadius, cy - c * outerRadius, i % 10 == 0 ? 2.0f : 1.4f);
+void TideTuneAudioProcessorEditor::drawPitchTrace(juce::Graphics& g) {
+    const float x=390.0f,y=235.0f,w=433.0f,h=189.0f;
+    g.setColour(juce::Colour(0xff091621));
+    g.fillRoundedRectangle(x,y,w,h,9.0f);
+    for(int n=0;n<5;++n) {
+        const float py=y+(n+1)*h/6.0f;
+        g.setColour(border.withAlpha(0.35f));
+        g.drawHorizontalLine((int)py,x+8,x+w-8);
     }
-    g.setColour(juce::Colour(0xff121a25));
-    g.fillEllipse(cx - 65.0f, cy - 65.0f, 130.0f, 130.0f);
-    g.setColour(border);
-    g.drawEllipse(cx - 65.0f, cy - 65.0f, 130.0f, 130.0f, 1.0f);
-    g.setColour(blue);
-    g.setFont(juce::Font(juce::FontOptions(47.0f, juce::Font::bold)));
-    g.drawFittedText(displayedTarget >= 0 ? noteName(displayedTarget) : "--",
-                     juce::Rectangle<int>(480, 247, 132, 73), juce::Justification::centred, 1);
-    g.setColour(secondary);
-    g.setFont(juce::Font(juce::FontOptions(10.0f, juce::Font::plain)));
-    g.drawFittedText("CORRECTED NOTE", {486, 317, 120, 18}, juce::Justification::centred, 1);
-    drawText(g, "-100", {416, 375, 55, 18}, 10.0f, dim);
-    drawText(g, "0", {544, 378, 33, 18}, 10.0f, secondary);
-    drawText(g, "+100", {627, 375, 53, 18}, 10.0f, dim);
-    // Pitch history, showing tracked input trends in the lower left of panel.
-    g.setColour(juce::Colour(0xff293747));
-    g.drawLine(40.0f, 389.0f, 342.0f, 389.0f, 1.0f);
     juce::Path trace;
-    bool started = false;
-    for (int i = 0; i < 62; ++i) {
-        const float value = noteTrail[(noteTrailIndex + i) % 62];
-        if (value < 0.0f) { started = false; continue; }
-        const float x = 40.0f + i * (302.0f / 61.0f);
-        const float y = 383.0f - std::clamp(value, -100.0f, 100.0f) * 0.19f;
-        if (!started) trace.startNewSubPath(x, y);
-        else trace.lineTo(x, y);
-        started = true;
+    bool started=false;
+    for(int n=0;n<(int)noteTrail.size();++n) {
+        const float cents=noteTrail[(noteTrailIndex+n)%(int)noteTrail.size()];
+        if(cents<-100.0f){started=false;continue;}
+        const float px=x+10+n*((w-20)/(noteTrail.size()-1));
+        const float py=y+0.5f*h-std::clamp(cents,-50.0f,50.0f)*(h*0.0082f);
+        if(!started)trace.startNewSubPath(px,py);else trace.lineTo(px,py);
+        started=true;
     }
-    g.setColour(amber);
-    g.strokePath(trace, juce::PathStrokeType(1.7f));
+    g.setColour(cyan);
+    g.strokePath(trace,juce::PathStrokeType(2.1f,juce::PathStrokeType::curved));
+    drawText(g,"LIVE CENTS TRACE  |  INPUT",{416,433,398,22},11.0f,secondary,true);
 }
 
 bool TideTuneAudioProcessorEditor::noteEnabled(int note) const {
