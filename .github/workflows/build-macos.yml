@@ -2,7 +2,7 @@ name: macOS TideTune build
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0.4-sidechain-preview]
   workflow_dispatch:
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
       - name: Upload arm64 plugin bundles
         uses: actions/upload-artifact@v4
         with:
-          name: TideTune-v0.3.0-arm64-macOS-VST3-AU
+          name: TideTune-v0.4.0-arm64-macOS-VST3-AU
           path: |
             build/TideTune_artefacts/Release/VST3/TideTune.vst3
             build/TideTune_artefacts/Release/AU/TideTune.component
