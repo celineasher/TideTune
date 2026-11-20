@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PitchEngine.h"
+#include "SidechainEngine.h"
 #include <array>
 #include <atomic>
 
@@ -35,9 +36,14 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     juce::AudioProcessorValueTreeState parameters;
     tidetune::PitchEngine engine;
+    tidetune::SidechainEngine sidechain;
+    std::atomic<float> sidechainReductionDb {0.0f};
+    std::atomic<bool> externalSidechainBusActive {false};
 
 private:
     // Cached parameter pointers: no String construction or tree lookups on the audio thread.
-    std::array<std::atomic<float>*, 24> parameterRefs_ {};
+    std::array<std::atomic<float>*, 36> parameterRefs_ {};
+    float outputGainSmoothed_ = 1.0f;
+    double sampleRate_ = 48000.0;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TideTuneAudioProcessor)
 };
