@@ -26,6 +26,7 @@ private:
 
     void timerCallback() override;
     void setupDial(int index, const juce::String&, const juce::String&, const juce::String&);
+    void setupSidechainDial(int index, const juce::String&, const juce::String&, const juce::String&);
     void drawCenterMeter(juce::Graphics&);
     void drawKeyboard(juce::Graphics&);
     void drawPitchTrace(juce::Graphics&);
@@ -40,7 +41,16 @@ private:
     TideTuneAudioProcessor& processor;
     TideLookAndFeel lookAndFeel;
     juce::ComboBox rootBox, scaleBox, rangeBox, characterBox;
-    juce::ToggleButton bypassButton;
+    juce::ToggleButton bypassButton, scEnableButton;
+    juce::ComboBox scSourceBox, scTargetBox;
+    juce::Slider outputGainDial;
+    juce::Label outputGainCaption;
+    std::unique_ptr<SliderAttachment> outputGainAttachment;
+    std::unique_ptr<ButtonAttachment> scEnableAttachment;
+    std::unique_ptr<ComboAttachment> scSourceAttachment, scTargetAttachment;
+    std::array<juce::Slider, 8> scDials;
+    std::array<juce::Label, 8> scDialCaptions;
+    std::array<std::unique_ptr<SliderAttachment>, 8> scDialAttachments;
     juce::TextButton autoModeButton, traceModeButton, clearTraceButton;
     std::array<juce::TextButton, 3> presetButtons;
     std::array<juce::Slider, 7> dials;
