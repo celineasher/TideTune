@@ -180,40 +180,55 @@ juce::String TideTuneAudioProcessorEditor::noteName(int midi) {
 
 void TideTuneAudioProcessorEditor::paint(juce::Graphics& g) {
     g.fillAll(bg);
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff1c2b3e), 180.0f, 0.0f,
-                                            bg, 700.0f, 500.0f, false));
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff223746),0.0f,0.0f,
+                                           bg,1000.0f,750.0f,false));
     g.fillRect(getLocalBounds());
-    g.setColour(blue);
-    g.fillRoundedRectangle(25.0f, 23.0f, 5.0f, 36.0f, 2.0f);
-    drawText(g, "TIDE", {41, 15, 104, 53}, 30.0f, white, true);
-    drawText(g, "TUNE", {138, 15, 112, 53}, 30.0f, cyan, true);
-    drawText(g, "PITCH ENGINE / 02", {274, 25, 250, 30}, 11.0f, secondary);
-    drawText(g, "PRESETS", {511, 25, 85, 30}, 10.0f, secondary);
-
-    g.setColour(surface);
-    g.fillRoundedRectangle(24.0f, 76.0f, 1042.0f, 84.0f, 13.0f);
     g.setColour(border);
-    g.drawRoundedRectangle(24.0f, 76.0f, 1042.0f, 84.0f, 13.0f, 1.0f);
-    drawText(g, "VOCAL RANGE", {41, 84, 160, 17}, 10.0f, secondary, true);
-    drawText(g, "KEY", {252, 84, 110, 17}, 10.0f, secondary, true);
-    drawText(g, "SCALE", {379, 84, 156, 17}, 10.0f, secondary, true);
-    drawText(g, "CORRECTION", {624, 84, 190, 17}, 10.0f, secondary, true);
-    drawText(g, "KEYBOARD: CLICK NOTES TO ENABLE / DISABLE", {38, 552, 615, 17}, 10.0f, secondary);
-    drawText(g, "BLUE = TARGET   •   ORANGE = INPUT", {782, 552, 280, 17}, 10.0f, secondary);
+    g.drawRoundedRectangle(1.0f,1.0f,1218.0f,846.0f,14.0f,1.1f);
+    juce::Path logo;
+    logo.startNewSubPath(29.0f,43.0f);
+    logo.cubicTo(44.0f,14.0f,55.0f,62.0f,76.0f,31.0f);
+    logo.cubicTo(87.0f,19.0f,96.0f,33.0f,104.0f,30.0f);
+    g.setColour(cyan);
+    g.strokePath(logo,juce::PathStrokeType(5.0f,juce::PathStrokeType::curved));
+    drawText(g,"TideTune",{120,16,227,50},32.0f,white,true);
+    drawText(g,"Pro",{347,17,90,47},30.0f,cyan,true);
+    g.setColour(border);g.drawVerticalLine(448,18.0f,65.0f);
+    drawText(g,"VOCAL PITCH ENGINE",{467,23,220,35},12.0f,secondary);
+    drawText(g,"V0.3 | LIVE",{1060,25,127,33},12.0f,cyan,true,
+             juce::Justification::centredRight);
 
-    g.setColour(surface);
-    g.fillRoundedRectangle(24.0f, 174.0f, 1042.0f, 232.0f, 16.0f);
-    g.setColour(border);
-    g.drawRoundedRectangle(24.0f, 174.0f, 1042.0f, 232.0f, 16.0f, 1.0f);
+    drawPanel(g,{24.0f,84.0f,1172.0f,94.0f},11.0f);
+    drawText(g,"INPUT RANGE",{44,94,182,23},11.0f,secondary,true);
+    drawText(g,"KEY",{261,94,112,23},11.0f,secondary,true);
+    drawText(g,"SCALE",{401,94,195,23},11.0f,secondary,true);
+    drawText(g,"CORRECTION MODE",{641,94,189,23},11.0f,secondary,true);
+    drawText(g,"SET YOUR SONG'S KEY AND SCALE",{873,100,267,20},10.0f,dim);
+
+    drawPanel(g,{24.0f,193.0f,1172.0f,291.0f},13.0f);
+    drawText(g,"LIVE VOCAL INPUT",{47,246,285,21},11.0f,secondary,true);
+    drawText(g,displayedMidi<0?"--":noteName((int)std::round(displayedMidi)),
+             {46,271,246,87},68.0f,white,true);
+    drawText(g,displayedMidi<0?"WAITING FOR VOCAL":
+             juce::String(displayedConfidence*100.0f,0)+"% PITCH CONFIDENCE",
+             {52,350,245,23},12.0f,amber,true);
+    drawText(g,"CORRECTED TARGET",{943,246,241,21},11.0f,secondary,true);
+    drawText(g,noteName(displayedTarget),{945,271,240,87},68.0f,cyan,true);
+    drawText(g,"MONOPHONIC • KEY-LOCKED",{949,350,240,23},11.0f,secondary,true);
     drawCenterMeter(g);
 
-    g.setColour(surface);
-    g.fillRoundedRectangle(24.0f, 420.0f, 1042.0f, 127.0f, 14.0f);
-    g.setColour(border);
-    g.drawRoundedRectangle(24.0f, 420.0f, 1042.0f, 127.0f, 14.0f, 1.0f);
+    drawPanel(g,{24.0f,494.0f,1172.0f,205.0f},13.0f);
+    for(int i=1;i<4;++i) {
+        g.setColour(border.withAlpha(0.65f));
+        g.drawVerticalLine(24+i*293,507.0f,687.0f);
+    }
+    drawPanel(g,{24.0f,709.0f,1172.0f,119.0f},13.0f);
+    drawText(g,"ALLOWED",{40,738,159,25},15.0f,white,true);
+    drawText(g,"NOTES",{40,762,159,25},15.0f,cyan,true);
+    drawText(g,"CLICK TO ENABLE",{40,794,160,18},10.0f,secondary);
     drawKeyboard(g);
-    drawText(g, "TIDE AUDIO / ORIGINAL DSP", {27, 665, 360, 16}, 10.0f, dim);
-    drawText(g, "V0.2.1 • CORRECTION MODE / HARD", {811, 665, 256, 16}, 10.0f, secondary);
+    g.setColour(dim);
+    g.drawHorizontalLine(836,24.0f,1194.0f);
 }
 
 void TideTuneAudioProcessorEditor::drawCenterMeter(juce::Graphics& g) {
