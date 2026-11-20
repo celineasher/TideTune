@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(TideTune VERSION 0.2.1 LANGUAGES C CXX)
+project(TideTune VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,7 +25,7 @@ juce_add_plugin(TideTune
     PLUGIN_MANUFACTURER_CODE Tida
     PLUGIN_CODE Ttun
     PRODUCT_NAME "TideTune"
-    DESCRIPTION "TideTune 0.2.1 - Smooth pitch-transition fix"
+    DESCRIPTION "TideTune 0.3 - Native studio UI and improved vocal transitions"
     FORMATS ${TIDETUNE_FORMATS}
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
