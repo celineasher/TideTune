@@ -23,7 +23,7 @@ if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
   echo "Unsupported architecture: $ARCH" >&2; exit 1
 fi
 
-printf '\n== TideTune v0.2.1 / macOS %s ==\n' "$ARCH"
+printf '\n== TideTune v0.3 / macOS %s ==\n' "$ARCH"
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="$ARCH"
 cmake --build build --config Release --parallel 4
 
