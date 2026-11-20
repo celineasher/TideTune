@@ -292,49 +292,45 @@ bool TideTuneAudioProcessorEditor::noteEnabled(int note) const {
 }
 
 void TideTuneAudioProcessorEditor::drawKeyboard(juce::Graphics& g) {
-    const int root = static_cast<int>(processor.parameters.getRawParameterValue("root")->load());
-    const int scale = static_cast<int>(processor.parameters.getRawParameterValue("scale")->load());
-    const int inputClass = displayedMidi >= 0 ?
-        (static_cast<int>(std::round(displayedMidi)) % 12 + 12) % 12 : -1;
-    const int targetClass = displayedTarget >= 0 ? (displayedTarget % 12 + 12) % 12 : -1;
-
-    // 2 octaves of piano keys. Clicking either octave toggles that pitch class globally.
-    for (int octave = 0; octave < 2; ++octave) {
-        const int offset = octave * 7;
-        for (int note = 0; note < 12; ++note) {
-            const int whiteIndex = whitePosition(note);
-            if (whiteIndex < 0) continue;
-            const int x = keyX + (offset + whiteIndex) * keyW;
-            const bool usable = noteEnabled(note) && tidetune::inScale(note, root, scale);
-            const bool target = targetClass == note;
-            const bool input = inputClass == note;
-            g.setColour(target ? blue : usable ? juce::Colour(0xffdfe6ef) : juce::Colour(0xff627083));
-            g.fillRoundedRectangle(static_cast<float>(x), static_cast<float>(keyY),
-                                   static_cast<float>(keyW - 2), static_cast<float>(keyH), 4.0f);
-            g.setColour(juce::Colour(0xff0a111b));
-            g.drawRoundedRectangle(static_cast<float>(x), static_cast<float>(keyY),
-                                   static_cast<float>(keyW - 2), static_cast<float>(keyH), 4.0f, 1.0f);
-            if (input) { g.setColour(amber); g.fillEllipse(static_cast<float>(x + keyW / 2 - 4),
-                                                          static_cast<float>(keyY + 52), 8.0f, 8.0f); }
-            if (whiteIndex == 0) drawText(g, octave == 0 ? "C3" : "C4",
-                                          {x + 9, keyY + 65, 34, 13}, 10.0f, juce::Colour(0xff142031));
+    const int root=(int)processor.parameters.getRawParameterValue("root")->load();
+    const int scale=(int)processor.parameters.getRawParameterValue("scale")->load();
+    const int active=displayedTarget>=0?(displayedTarget%12+12)%12:-1;
+    const char* whiteNoteNames[]{"C","D","E","F","G","A","B"};
+    for(int octave=0;octave<2;++octave) {
+        for(int pc=0;pc<12;++pc) {
+            const int whiteIdx=whitePosition(pc);
+            if(whiteIdx<0)continue;
+            const int x=keyX+(octave*7+whiteIdx)*keyW;
+            const bool enabled=noteEnabled(pc)&&tidetune::inScale(pc,root,scale);
+            const bool target=pc==active;
+            g.setGradientFill(juce::ColourGradient(
+                target?cyan:(enabled?juce::Colour(0xff85dbe7):juce::Colour(0xffeef2f6)),
+                (float)x,(float)keyY,
+                target?juce::Colour(0xff21a9c9):juce::Colour(0xffd0dce5),
+                (float)x,(float)(keyY+keyH),false));
+            g.fillRoundedRectangle((float)x,(float)keyY,keyW-2.0f,(float)keyH,4.0f);
+            g.setColour(target?cyan:juce::Colour(0xff344253));
+            g.drawRoundedRectangle((float)x,(float)keyY,keyW-2.0f,(float)keyH,
+                                   4.0f,target?2.5f:1.0f);
+            drawText(g,juce::String(whiteNoteNames[whiteIdx])+juce::String(octave+3),
+                     {x+4,keyY+68,keyW-10,18},12.0f,juce::Colour(0xff101a24),true,
+                     juce::Justification::centred);
         }
     }
-    for (int octave = 0; octave < 2; ++octave) {
-        const int offset = octave * 7;
-        for (int note = 0; note < 12; ++note) {
-            const int after = blackAfterWhite(note);
-            if (after < 0) continue;
-            const int x = keyX + (offset + after + 1) * keyW - 24;
-            const bool usable = noteEnabled(note) && tidetune::inScale(note, root, scale);
-            const bool target = targetClass == note;
-            const bool input = inputClass == note;
-            g.setColour(target ? blue : usable ? juce::Colour(0xff29384c) : juce::Colour(0xff10161d));
-            g.fillRoundedRectangle(static_cast<float>(x), static_cast<float>(keyY), 46.0f, 50.0f, 3.0f);
-            g.setColour(juce::Colour(0xff070b12));
-            g.drawRoundedRectangle(static_cast<float>(x), static_cast<float>(keyY), 46.0f, 50.0f, 3.0f, 1.0f);
-            if (input) { g.setColour(amber); g.fillEllipse(static_cast<float>(x + 19),
-                                                          static_cast<float>(keyY + 35), 8.0f, 8.0f); }
+    for(int octave=0;octave<2;++octave) {
+        for(int pc:{1,3,6,8,10}) {
+            const int after=blackAfterWhite(pc);
+            const int x=keyX+(octave*7+after+1)*keyW-21;
+            const bool enabled=noteEnabled(pc)&&tidetune::inScale(pc,root,scale);
+            const bool target=pc==active;
+            g.setGradientFill(juce::ColourGradient(target?cyan:
+                (enabled?juce::Colour(0xff263f52):juce::Colour(0xff0b111b)),
+                (float)x,(float)keyY,
+                target?blue:juce::Colour(0xff02070d),
+                (float)x,(float)(keyY+56),false));
+            g.fillRoundedRectangle((float)x,(float)keyY,42.0f,57.0f,4.0f);
+            g.setColour(target?cyan:juce::Colour(0xff536675));
+            g.drawRoundedRectangle((float)x,(float)keyY,42.0f,57.0f,4.0f,1.0f);
         }
     }
 }
