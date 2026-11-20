@@ -9,3 +9,6 @@ mkdir -p build
 ./build/tidetune_dsp_tests
 "$compiler" -std=c++17 -Wall -Wextra -Werror -O2 Tests/transition_test.cpp -o build/tidetune_transition_tests
 ./build/tidetune_transition_tests
+
+"$compiler" -std=c++17 -Wall -Wextra -Werror -O2 Tests/sidechain_test.cpp -o build/tidetune_sidechain_tests
+./build/tidetune_sidechain_tests
