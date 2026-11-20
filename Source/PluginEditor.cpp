@@ -383,46 +383,54 @@ void TideTuneAudioProcessorEditor::togglePitchClass(int pc) {
     repaint();
 }
 
-void TideTuneAudioProcessorEditor::mouseDown(const juce::MouseEvent& e) {
-    const auto p = e.getPosition();
-    if (p.y >= keyY && p.y < keyY + keyH && p.x >= keyX && p.x < keyX + 14 * keyW) {
-        const int octaveFromX = std::clamp((p.x - keyX) / (7 * keyW), 0, 1);
-        const int baseX = keyX + octaveFromX * 7 * keyW;
-        if (p.y < keyY + 50) {
-            for (int semitone : {1, 3, 6, 8, 10}) {
-                const int pos = blackAfterWhite(semitone);
-                const int x = baseX + (pos + 1) * keyW - 24;
-                if (p.x >= x && p.x < x + 46) { togglePitchClass(semitone); return; }
-            }
+void TideTuneAudioProcessorEditor::mouseDown(const juce::MouseEvent& event) {
+    const auto p=event.getPosition();
+    if(p.y<keyY||p.y>=keyY+keyH||p.x<keyX||p.x>=keyX+14*keyW)return;
+    const int octave=std::clamp((p.x-keyX)/(7*keyW),0,1);
+    const int base=keyX+octave*7*keyW;
+    if(p.y<keyY+57) {
+        for(int pc:{1,3,6,8,10}) {
+            const int x=base+(blackAfterWhite(pc)+1)*keyW-21;
+            if(p.x>=x&&p.x<x+42){togglePitchClass(pc);return;}
         }
-        const int whiteIndex = std::clamp((p.x - baseX) / keyW, 0, 6);
-        const int whiteToSemitone[7] {0, 2, 4, 5, 7, 9, 11};
-        togglePitchClass(whiteToSemitone[whiteIndex]);
     }
+    const int whiteKey=std::clamp((p.x-base)/keyW,0,6);
+    constexpr int whiteToPc[]{0,2,4,5,7,9,11};
+    togglePitchClass(whiteToPc[whiteKey]);
 }
 
 void TideTuneAudioProcessorEditor::resized() {
-    rangeBox.setBounds(40, 108, 195, 38);
-    rootBox.setBounds(252, 108, 111, 38);
-    scaleBox.setBounds(379, 108, 231, 38);
-    characterBox.setBounds(624, 108, 209, 38);
-    bypassButton.setBounds(925, 108, 113, 38);
-    for (int i = 0; i < 3; ++i)
-        presetButtons[static_cast<size_t>(i)].setBounds(589 + i * 153, 22, 144, 39);
-    for (int i = 0; i < 7; ++i) {
-        const int x = 35 + i * 147;
-        dials[static_cast<size_t>(i)].setBounds(x, 426, 140, 95);
-        dialCaptions[static_cast<size_t>(i)].setBounds(x, 519, 140, 22);
+    rangeBox.setBounds(44,125,186,36);
+    rootBox.setBounds(261,125,111,36);
+    scaleBox.setBounds(402,125,199,36);
+    characterBox.setBounds(641,125,194,36);
+    bypassButton.setBounds(1051,127,122,33);
+    for(int i=0;i<3;++i)
+        presetButtons[static_cast<size_t>(i)].setBounds(671+i*128,28,121,34);
+    autoModeButton.setBounds(50,210,145,31);
+    traceModeButton.setBounds(204,210,145,31);
+    clearTraceButton.setBounds(1041,211,129,30);
+    constexpr int largeIndices[]{0,2,4,3};
+    for(int i=0;i<4;++i) {
+        const int x=43+i*293;
+        dials[static_cast<size_t>(largeIndices[i])].setBounds(x+25,527,210,137);
+        dialCaptions[static_cast<size_t>(largeIndices[i])].setBounds(x+16,654,226,30);
+    }
+    const int smallIndices[]{1,5,6};
+    const int smallX[]{50,917,1040};
+    for(int i=0;i<3;++i) {
+        dials[static_cast<size_t>(smallIndices[i])].setBounds(smallX[i],374,119,80);
+        dialCaptions[static_cast<size_t>(smallIndices[i])].setBounds(smallX[i],455,119,19);
     }
 }
 
 void TideTuneAudioProcessorEditor::timerCallback() {
-    displayedMidi = processor.engine.detectedMidi.load(std::memory_order_relaxed);
-    displayedTarget = processor.engine.targetMidi.load(std::memory_order_relaxed);
-    displayedConfidence = processor.engine.confidence.load(std::memory_order_relaxed);
-    displayedCents = displayedMidi >= 0.0f ?
-        std::clamp((displayedMidi - std::round(displayedMidi)) * 100.0f, -100.0f, 100.0f) : 0.0f;
-    noteTrail[noteTrailIndex] = displayedMidi >= 0 ? displayedCents : -150.0f;
-    noteTrailIndex = (noteTrailIndex + 1) % 62;
+    displayedMidi=processor.engine.detectedMidi.load(std::memory_order_relaxed);
+    displayedTarget=processor.engine.targetMidi.load(std::memory_order_relaxed);
+    displayedConfidence=processor.engine.confidence.load(std::memory_order_relaxed);
+    displayedCents=displayedMidi>=0.0f?
+        std::clamp((displayedMidi-std::round(displayedMidi))*100.0f,-50.0f,50.0f):0.0f;
+    noteTrail[static_cast<size_t>(noteTrailIndex)]=displayedMidi>=0?displayedCents:-150.0f;
+    noteTrailIndex=(noteTrailIndex+1)%static_cast<int>(noteTrail.size());
     repaint();
 }
