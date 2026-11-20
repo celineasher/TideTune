@@ -1,55 +1,37 @@
-# TideTune — Original Vocal Pitch Correction Plugin
+# TideTune Pro v0.3 — original monophonic pitch-correction plugin
 
-TideTune is an experimental JUCE-based **VST3 / Audio Unit** monophonic vocal pitch corrector for macOS, not an Antares product. The v0.2 source adds Hard Rap / Melodic / Natural presets, pitch tracking, fast retune, scale masks, and a custom UI.
+Original JUCE-based VST3, Audio Unit, and standalone source project for macOS. TideTune is **not** an Antares product.
 
-## First-time setup from existing v0.2 source
+## What's new
+- Native studio-style GUI: metallic cyan-ring controls, live input/target notes, centered cents tuner, live scrolling pitch trace, clickable two-octave pitch-class keyboard and functioning presets.
+- Audio engine updates: bounded waveform-similarity grain alignment at silent grain resets, cubic sample interpolation, stable target-note confirmation and short unvoiced-consonant hold.
+- Existing automatable controls: Retune Speed, Strength, Flex Tune, Humanize, Vibrato, Transpose, Mix, Bypass, vocal range, key, scale and correction style.
+- Presets: HARD RAP, MELODIC, NATURAL.
 
-The repository was initialized as an update channel; the complete plugin source still needs a one-time import from your earlier TideTune v0.2 download. The installer checks for the ZIP in `~/Downloads/TideTune-v0.2.0-mac-source.zip` or the extracted `~/Downloads/TideTune` folder.
-
+## Install or update on your Mac
 Quit Ableton before running:
 
 ```bash
-git clone https://github.com/celineasher/TideTune.git ~/TideTune
-bash ~/TideTune/import_existing_mac.sh
 bash ~/TideTune/update_mac.sh
 ```
 
-The import script copies your existing v0.2 source to the clone, commits and pushes it. Pushing requires GitHub authentication on your Mac. Do not run it if the downloaded source has been modified in unexpected ways.
+This pulls the latest source, runs DSP regression tests, builds the JUCE plugin and installs VST3/AU in the user Library. The script preserves old installed bundles under `~/Desktop/TideTune-Backups`.
 
-## Every future update
-
-Quit Ableton, then:
+Alternatively, from inside the repository, use:
 
 ```bash
-bash ~/TideTune/update_mac.sh
+bash ./test_dsp.sh
+bash ./build_mac.sh --install
 ```
 
-The updater fast-forwards from GitHub, runs DSP tests, compiles JUCE plugin formats, and installs to your user Library. Previous installed plugins are backed up by `build_mac.sh`.
+Requires Apple Command Line Tools, CMake, Git and network access for the JUCE dependency. To restore a previous version, quit Ableton and copy the backup bundles back to the plugin folders.
 
-## First install/update as one Bash command
+## Limitations
+- **Experimental** monophonic granular vocal shifter, not a studio-proven formant-preserving pitch correction engine.
+- No true formant shifting/preservation, offline graph-editing, or automatic key detection. The **Pitch Trace** button is a visual monitor, not graph editing.
+- Synthetic DSP tests pass in the development environment. Full macOS JUCE compilation, AU/VST3 scanning and real-voice listening must be tested on the user's Mac.
+- Click reduction cannot guarantee completely artifact-free processing on every vocal or instrumental source.
+- Follow JUCE licensing terms before commercial distribution.
 
-After checking the script before running it:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/celineasher/TideTune/main/install_mac.sh)
-```
-
-Requires Git, CMake, macOS Command Line Tools and access to GitHub/JUCE. The code is experimental; DAW compatibility is not guaranteed. JUCE has separate licensing requirements.
-
-## v0.2.1 — Pitch-transition click fix
-
-- Fixed a discontinuity when automatic pitch shifting changes direction (upward correction to downward correction, or the reverse). The dual-grain read-head phase is now continuous, rather than jumping between delay positions.
-- Smoothed the wet/dry blend, bypass and voiced/unvoiced crossfades.
-- Increased the minimum HARD retune slew to 1.5 ms for fewer artifacts on sudden note transitions; the HARD RAP preset still targets fast, obvious tuning.
-- Added standalone C++ regression tests for pitch-direction changes and wet/dry automation. Run `bash ./test_dsp.sh`.
-- Preserved the plugin identity / bundle ID, so existing projects should continue recognizing the updated plugin.
-
-For a local update, **quit Ableton completely** and run:
-
-```bash
-bash ~/TideTune/update_mac.sh
-```
-
-The update script pulls GitHub changes, runs DSP tests, builds VST3/AU, and backs up previous plugin installations on the Desktop before replacement. Reopen Ableton afterward. This patch has passed standalone DSP tests; compatibility and real vocal recordings still require testing in Ableton on macOS.
-
-**Known limits:** Grain-based shifting can still introduce artifacts on noisy, breathy, or polyphonic sources. TideTune does not yet include production-grade formant preservation or pitch-synchronous overlap-add. Fixing the direction-switch click does not guarantee all vocal distortion is eliminated.
+## Verification
+`test_dsp.sh` runs monophonic pitch tracking, scale quantization, correction, bypass, noise and harmonic transition/dropout regression tests using Clang or GCC. Use a blank Live Set to validate the VST3 build before replacing plugins in an important session.
