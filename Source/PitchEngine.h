@@ -1,6 +1,6 @@
 #pragma once
 
-// TideTune 0.2.1: click-reduced, allocation-free monophonic vocal pitch correction.
+// TideTune 0.3.0: stability and continuity, allocation-free monophonic vocal pitch correction.
 // No JUCE dependencies. The algorithm is a low-latency dual-grain shifter,
 // not a formant-preserving PSOLA/vocoder. Keep expectations realistic.
 
@@ -91,11 +91,15 @@ public:
         decimationCounter_ = 0;
         detectCountdown_ = 256;
         phase_ = 0.0f;
+        grainOffsetA_ = grainOffsetB_ = 0.0f;
         ratio_ = desiredRatio_ = 1.0f;
         activity_ = 0.0f;
         smoothedMix_ = 0.0f;
         lockedTarget_ = -1;
         noteAge_ = 0;
+        pendingTarget_ = -1;
+        pendingFrames_ = 0;
+        missedFrames_ = 0;
         vibratoPhase_ = 0.0f;
         detectedHz.store(0.0f, std::memory_order_relaxed);
         detectedMidi.store(-1.0f, std::memory_order_relaxed);
@@ -156,12 +160,29 @@ public:
             // This removes a discontinuity when the correction crosses unity
             // (for example, switching from sharpening to flattening a note).
             // Both wrap points occur with the wrapping grain fully faded out.
+            const float oldPhase = phase_;
             phase_ += (1.0f - ratio_) / grainLength_;
+            const bool aWrapped = phase_ >= 1.0f || phase_ < 0.0f;
             if (phase_ >= 1.0f) phase_ -= 1.0f;
             else if (phase_ < 0.0f) phase_ += 1.0f;
             const float secondPhase = phase_ < 0.5f ? phase_ + 0.5f : phase_ - 0.5f;
-            const float delayA = baseDelay_ + phase_ * grainLength_;
-            const float delayB = baseDelay_ + secondPhase * grainLength_;
+            const bool bWrapped = !aWrapped && ((oldPhase < 0.5f) != (phase_ < 0.5f));
+            // Reset incoming grains when their window is silent; align them
+            // with the dominant outgoing grain by waveform similarity.
+            const float hz = detectedHz.load(std::memory_order_relaxed);
+            if (hz > 55.0f && hz < 1200.0f && (aWrapped || bWrapped)) {
+                const int maxOffset = std::clamp(static_cast<int>(sampleRate_ / (2.0 * hz)), 6, 128);
+                if (aWrapped)
+                    grainOffsetA_ = matchGrain(baseDelay_ + phase_ * grainLength_,
+                                               baseDelay_ + secondPhase * grainLength_ + grainOffsetB_,
+                                               maxOffset);
+                if (bWrapped)
+                    grainOffsetB_ = matchGrain(baseDelay_ + secondPhase * grainLength_,
+                                               baseDelay_ + phase_ * grainLength_ + grainOffsetA_,
+                                               maxOffset);
+            }
+            const float delayA = baseDelay_ + phase_ * grainLength_ + grainOffsetA_;
+            const float delayB = baseDelay_ + secondPhase * grainLength_ + grainOffsetB_;
             const float windowA = std::sin(static_cast<float>(pi) * phase_);
             const float windowB = std::sin(static_cast<float>(pi) * secondPhase);
             const float gainA = windowA * windowA;
@@ -182,13 +203,35 @@ public:
     std::atomic<float> correctionCents {0.0f};
 
 private:
+    float matchGrain(float incoming, float reference, int maxOffset) const noexcept {
+        float bestError = 1.0e30f;
+        int bestOffset = 0;
+        for (int offset = -maxOffset; offset <= maxOffset; offset += 2) {
+            float error = 0.0f;
+            for (int history = 0; history <= 96; history += 8) {
+                const float delta = readDelay(0, incoming + static_cast<float>(offset + history))
+                                  - readDelay(0, reference + static_cast<float>(history));
+                error += delta * delta;
+            }
+            if (error < bestError) { bestError = error; bestOffset = offset; }
+        }
+        return static_cast<float>(bestOffset);
+    }
+
     float readDelay(int ch, float delay) const noexcept {
         const float position = static_cast<float>(writePos_) - delay;
         const int whole = static_cast<int>(std::floor(position));
         const float fraction = position - static_cast<float>(whole);
         const auto& b = delayLine_[ch];
-        return b[whole & delayMask] * (1.0f - fraction)
-               + b[(whole + 1) & delayMask] * fraction;
+        const float ym1 = b[(whole - 1) & delayMask];
+        const float y0 = b[whole & delayMask];
+        const float y1 = b[(whole + 1) & delayMask];
+        const float y2 = b[(whole + 2) & delayMask];
+        const float a = 0.5f * (3.0f * (y0 - y1) + y2 - ym1);
+        const float c = 0.5f * (y1 - ym1);
+        const float d = y0;
+        const float bcoef = 0.5f * (2.0f * ym1 - 5.0f * y0 + 4.0f * y1 - y2);
+        return ((a * fraction + bcoef) * fraction + c) * fraction + d;
     }
 
     void estimatePitch(const Settings& s) noexcept {
@@ -250,12 +293,29 @@ private:
         const int proposed = nearestAllowedMidi(midi, s.root, s.scale, s.noteMask);
         if (proposed < 0) { setUnvoiced(); return; }
 
-        // Small hysteresis reduces target-note chatter at semitone boundaries.
-        if (lockedTarget_ < 0 || !allowed(lockedTarget_, s.root, s.scale, s.noteMask)
-            || std::abs(midi - static_cast<float>(lockedTarget_)) > 0.64f)
+        // Hold briefly through consonants; demand two proposals before switching
+        // target notes unless the pitch has made a large interval jump.
+        missedFrames_ = 0;
+        if (lockedTarget_ < 0 || !allowed(lockedTarget_, s.root, s.scale, s.noteMask)) {
             lockedTarget_ = proposed;
+            pendingTarget_ = -1;
+            pendingFrames_ = 0;
+            noteAge_ = 0;
+        } else if (proposed != lockedTarget_ &&
+                   std::abs(midi - static_cast<float>(lockedTarget_)) > 0.64f) {
+            if (pendingTarget_ == proposed) ++pendingFrames_;
+            else { pendingTarget_ = proposed; pendingFrames_ = 1; }
+            if (pendingFrames_ >= 2 || std::abs(proposed - lockedTarget_) >= 5) {
+                lockedTarget_ = proposed;
+                pendingTarget_ = -1;
+                pendingFrames_ = 0;
+                noteAge_ = 0;
+            }
+        } else {
+            pendingTarget_ = -1;
+            pendingFrames_ = 0;
+        }
         if (lockedTarget_ == proposed) ++noteAge_;
-        else noteAge_ = 0;
         noteAge_ = std::min(noteAge_, 10000);
 
         const float correction = static_cast<float>(lockedTarget_) - midi;
@@ -276,9 +336,16 @@ private:
     }
 
     void setUnvoiced() noexcept {
+        const int holdFrames = std::max(2, static_cast<int>(0.035 * sampleRate_ / 256.0));
+        if (++missedFrames_ < holdFrames) {
+            confidence.store(0.0f, std::memory_order_relaxed);
+            return;
+        }
         desiredRatio_ = 1.0f;
         lockedTarget_ = -1;
         noteAge_ = 0;
+        pendingTarget_ = -1;
+        pendingFrames_ = 0;
         detectedHz.store(0.0f, std::memory_order_relaxed);
         detectedMidi.store(-1.0f, std::memory_order_relaxed);
         targetMidi.store(-1, std::memory_order_relaxed);
@@ -296,8 +363,10 @@ private:
     int decimationCounter_ = 0, decimationFactor_ = 2, detectCountdown_ = 256;
     int dryDelaySamples_ = 1280;
     int lockedTarget_ = -1, noteAge_ = 0;
+    int pendingTarget_ = -1, pendingFrames_ = 0, missedFrames_ = 0;
     float grainLength_ = 1024.0f, baseDelay_ = 768.0f;
     float phase_ = 0.0f, ratio_ = 1.0f, desiredRatio_ = 1.0f;
+    float grainOffsetA_ = 0.0f, grainOffsetB_ = 0.0f;
     float activity_ = 0.0f, smoothedMix_ = 0.0f, vibratoPhase_ = 0.0f;
 };
 } // namespace tidetune
