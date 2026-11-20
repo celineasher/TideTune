@@ -13,7 +13,7 @@ const juce::Colour white(0xffeaf6fc);
 const juce::Colour secondary(0xffa1b5c6);
 const juce::Colour dim(0xff667e8f);
 const juce::Colour amber(0xffffbd80);
-constexpr int keyX=207, keyY=725, keyW=69, keyH=92;
+constexpr int keyX=207, keyY=943, keyW=69, keyH=92;
 
 int whitePosition(int pc) {
     constexpr int map[12] {0,-1,1,-1,2,3,-1,4,-1,5,-1,6};
@@ -111,6 +111,35 @@ TideTuneAudioProcessorEditor::TideTuneAudioProcessorEditor(TideTuneAudioProcesso
     setupDial(5,"TRANSPOSE","transpose"," st");
     setupDial(6,"WET MIX","mix"," %");
     const juce::String presetNames[]{"HARD RAP","MELODIC","NATURAL"};
+    scSourceBox.addItemList({"Internal Vocal","External Bus"},1);
+    scTargetBox.addItemList({"Output Gain","Wet Mix","Correction Strength"},1);
+    addAndMakeVisible(scSourceBox);
+    addAndMakeVisible(scTargetBox);
+    scEnableButton.setButtonText("SIDECHAIN ON");
+    scEnableButton.setColour(juce::ToggleButton::tickColourId,cyan);
+    addAndMakeVisible(scEnableButton);
+    scEnableAttachment=std::make_unique<ButtonAttachment>(ps,"sc_enable",scEnableButton);
+    scSourceAttachment=std::make_unique<ComboAttachment>(ps,"sc_source",scSourceBox);
+    scTargetAttachment=std::make_unique<ComboAttachment>(ps,"sc_target",scTargetBox);
+    setupSidechainDial(0,"THRESHOLD","sc_threshold"," dB");
+    setupSidechainDial(1,"RATIO","sc_ratio",":1");
+    setupSidechainDial(2,"ATTACK","sc_attack"," ms");
+    setupSidechainDial(3,"RELEASE","sc_release"," ms");
+    setupSidechainDial(4,"SOFT KNEE","sc_knee"," dB");
+    setupSidechainDial(5,"SC DEPTH","sc_amount"," %");
+    setupSidechainDial(6,"DETECT HPF","sc_hpf"," Hz");
+    setupSidechainDial(7,"DETECT LPF","sc_lpf"," Hz");
+    outputGainDial.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    outputGainDial.setTextBoxStyle(juce::Slider::TextBoxBelow,false,90,20);
+    outputGainDial.setTextValueSuffix(" dB");
+    outputGainDial.setDoubleClickReturnValue(true,0.0);
+    addAndMakeVisible(outputGainDial);
+    outputGainCaption.setText("OUTPUT GAIN",juce::dontSendNotification);
+    outputGainCaption.setColour(juce::Label::textColourId,secondary);
+    outputGainCaption.setJustificationType(juce::Justification::centred);
+    outputGainCaption.setFont(juce::Font(juce::FontOptions(10.0f,juce::Font::bold)));
+    addAndMakeVisible(outputGainCaption);
+    outputGainAttachment=std::make_unique<SliderAttachment>(ps,"output_gain",outputGainDial);
     for(int i=0;i<3;++i) {
         auto& btn=presetButtons[static_cast<size_t>(i)];
         btn.setButtonText(presetNames[i]);
@@ -131,7 +160,7 @@ TideTuneAudioProcessorEditor::TideTuneAudioProcessorEditor(TideTuneAudioProcesso
         addAndMakeVisible(*btn);
     }
     noteTrail.fill(-150.0f);
-    setSize(1220,848);
+    setSize(1220,1070);
     startTimerHz(30);
 }
 TideTuneAudioProcessorEditor::~TideTuneAudioProcessorEditor() {
@@ -158,6 +187,24 @@ void TideTuneAudioProcessorEditor::setupDial(int index,const juce::String& capti
     dialAttachments[static_cast<size_t>(index)]=
         std::make_unique<SliderAttachment>(processor.parameters,id,knob);
 }
+void TideTuneAudioProcessorEditor::setupSidechainDial(int i,
+    const juce::String& caption,const juce::String& id,const juce::String& suffix) {
+    auto& dial=scDials[static_cast<size_t>(i)];
+    auto& name=scDialCaptions[static_cast<size_t>(i)];
+    dial.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    dial.setTextBoxStyle(juce::Slider::TextBoxBelow,false,90,22);
+    dial.setTextValueSuffix(suffix);
+    dial.setDoubleClickReturnValue(true,(i==0?-24.0:i==1?4.0:
+        i==2?5.0:i==3?150.0:i==4?6.0:i==5?50.0:0.0));
+    name.setText(caption,juce::dontSendNotification);
+    name.setColour(juce::Label::textColourId,white);
+    name.setJustificationType(juce::Justification::centred);
+    name.setFont(juce::Font(juce::FontOptions(11.0f,juce::Font::bold)));
+    addAndMakeVisible(name);
+    addAndMakeVisible(dial);
+    scDialAttachments[static_cast<size_t>(i)]=
+        std::make_unique<SliderAttachment>(processor.parameters,id,dial);
+}
 void TideTuneAudioProcessorEditor::drawText(juce::Graphics& g,const juce::String& s,
           juce::Rectangle<int> rect,float fontSize,juce::Colour colour,bool isBold,
           juce::Justification justification) {
@@ -169,8 +216,17 @@ void TideTuneAudioProcessorEditor::drawPanel(juce::Graphics& g,juce::Rectangle<f
     g.setGradientFill(juce::ColourGradient(surface2,rect.getTopLeft(),surface,
                                            rect.getBottomRight(),false));
     g.fillRoundedRectangle(rect,radius);
-    g.setColour(border.withAlpha(0.67f));
-    g.drawRoundedRectangle(rect,radius,1.0f);
+    g.setColour(border.withAlpha(0.77f));
+    g.drawRoundedRectangle(rect,radius,1.25f);
+    auto highlight=rect.reduced(1.0f);
+    highlight.setHeight(39.0f);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0x375bd6e6),
+        rect.getX(),rect.getY(),juce::Colours::transparentBlack,
+        rect.getX(),rect.getY()+40.0f,false));
+    g.fillRoundedRectangle(highlight,radius);
+    g.setColour(juce::Colour(0x5590cbdc));
+    g.drawHorizontalLine(static_cast<int>(rect.getY()+1.0f),
+        rect.getX()+radius,rect.getRight()-radius);
 }
 juce::String TideTuneAudioProcessorEditor::noteName(int midi) {
     if(midi<0)return "--";
@@ -184,7 +240,7 @@ void TideTuneAudioProcessorEditor::paint(juce::Graphics& g) {
                                            bg,1000.0f,750.0f,false));
     g.fillRect(getLocalBounds());
     g.setColour(border);
-    g.drawRoundedRectangle(1.0f,1.0f,1218.0f,846.0f,14.0f,1.1f);
+    g.drawRoundedRectangle(1.0f,1.0f,1218.0f,1067.0f,14.0f,1.1f);
     juce::Path logo;
     logo.startNewSubPath(29.0f,43.0f);
     logo.cubicTo(44.0f,14.0f,55.0f,62.0f,76.0f,31.0f);
@@ -195,7 +251,7 @@ void TideTuneAudioProcessorEditor::paint(juce::Graphics& g) {
     drawText(g,"Pro",{347,17,90,47},30.0f,cyan,true);
     g.setColour(border);g.drawVerticalLine(448,18.0f,65.0f);
     drawText(g,"VOCAL PITCH ENGINE",{467,23,220,35},12.0f,secondary);
-    drawText(g,"V0.3 | LIVE",{1060,25,127,33},12.0f,cyan,true,
+    drawText(g,"V0.4 | SIDECHAIN",{1060,25,127,33},12.0f,cyan,true,
              juce::Justification::centredRight);
 
     drawPanel(g,{24.0f,84.0f,1172.0f,94.0f},11.0f);
@@ -203,7 +259,7 @@ void TideTuneAudioProcessorEditor::paint(juce::Graphics& g) {
     drawText(g,"KEY",{261,94,112,23},11.0f,secondary,true);
     drawText(g,"SCALE",{401,94,195,23},11.0f,secondary,true);
     drawText(g,"CORRECTION MODE",{641,94,189,23},11.0f,secondary,true);
-    drawText(g,"SET YOUR SONG'S KEY AND SCALE",{873,100,267,20},10.0f,dim);
+
 
     drawPanel(g,{24.0f,193.0f,1172.0f,291.0f},13.0f);
     drawText(g,"LIVE VOCAL INPUT",{47,246,285,21},11.0f,secondary,true);
@@ -222,13 +278,29 @@ void TideTuneAudioProcessorEditor::paint(juce::Graphics& g) {
         g.setColour(border.withAlpha(0.65f));
         g.drawVerticalLine(24+i*293,507.0f,687.0f);
     }
-    drawPanel(g,{24.0f,709.0f,1172.0f,119.0f},13.0f);
-    drawText(g,"ALLOWED",{40,738,159,25},15.0f,white,true);
-    drawText(g,"NOTES",{40,762,159,25},15.0f,cyan,true);
-    drawText(g,"CLICK TO ENABLE",{40,794,160,18},10.0f,secondary);
+    drawPanel(g,{24.0f,710.0f,1172.0f,208.0f},13.0f);
+    drawText(g,"DYNAMIC SIDECHAIN",{42,713,280,34},18.0f,white,true);
+    drawText(g,"EXTERNAL ROUTING / INTERNAL ENVELOPE",{300,717,363,28},10.0f,secondary,true);
+    const bool externalSelected=processor.parameters.getRawParameterValue("sc_source")->load()>0.5f;
+    const bool externalActive=processor.externalSidechainBusActive.load(std::memory_order_relaxed);
+    const float reduction=processor.sidechainReductionDb.load(std::memory_order_relaxed);
+    drawText(g,externalSelected?(externalActive?"AUX BUS CONNECTED":"NO EXTERNAL AUX BUS"):
+        "VOCAL INPUT DETECTOR",{813,720,204,22},10.0f,
+        externalSelected&&!externalActive?amber:cyan,true);
+    drawText(g,juce::String(reduction,1)+" dB REDUCTION",{1000,715,172,24},
+        12.0f,cyan,true,juce::Justification::centredRight);
+    g.setColour(juce::Colour(0xff172c39));
+    g.fillRoundedRectangle(1035.0f,748.0f,129.0f,6.0f,3.0f);
+    g.setColour(cyan.withAlpha(0.92f));
+    g.fillRoundedRectangle(1035.0f,748.0f,
+        std::clamp(reduction/24.0f,0.0f,1.0f)*129.0f,6.0f,3.0f);
+    drawPanel(g,{24.0f,929.0f,1172.0f,120.0f},13.0f);
+    drawText(g,"ALLOWED",{40,958,159,25},15.0f,white,true);
+    drawText(g,"NOTES",{40,982,159,25},15.0f,cyan,true);
+    drawText(g,"CLICK TO ENABLE",{40,1014,160,18},10.0f,secondary);
     drawKeyboard(g);
     g.setColour(dim);
-    g.drawHorizontalLine(836,24.0f,1194.0f);
+    g.drawHorizontalLine(1057,24.0f,1194.0f);
 }
 
 void TideTuneAudioProcessorEditor::drawCenterMeter(juce::Graphics& g) {
@@ -405,6 +477,16 @@ void TideTuneAudioProcessorEditor::resized() {
     scaleBox.setBounds(402,125,199,36);
     characterBox.setBounds(641,125,194,36);
     bypassButton.setBounds(1051,127,122,33);
+    outputGainCaption.setBounds(902,92,119,20);
+    outputGainDial.setBounds(902,112,119,60);
+    scEnableButton.setBounds(42,758,152,32);
+    scSourceBox.setBounds(213,756,193,35);
+    scTargetBox.setBounds(419,756,224,35);
+    for(int i=0;i<8;++i) {
+        const int x=37+i*146;
+        scDials[static_cast<size_t>(i)].setBounds(x,794,130,92);
+        scDialCaptions[static_cast<size_t>(i)].setBounds(x,884,130,23);
+    }
     for(int i=0;i<3;++i)
         presetButtons[static_cast<size_t>(i)].setBounds(671+i*128,28,121,34);
     autoModeButton.setBounds(50,210,145,31);
